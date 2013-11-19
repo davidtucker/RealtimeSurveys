@@ -1,0 +1,254 @@
+<html>
+<head>
+    <link href="/travel.css" rel="stylesheet" type="text/css">
+    <link href="http://fonts.googleapis.com/css?family=Montserrat:400,700" rel="stylesheet" type="text/css">
+    <link href="//cdnjs.cloudflare.com/ajax/libs/nvd3/1.1.13-beta/nv.d3.min.css" rel="stylesheet"></link>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/d3/3.3.9/d3.min.js"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/nvd3/1.1.13-beta/nv.d3.min.js"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/jquery/2.0.3/jquery.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+
+    </style>
+</head>
+<body>
+    <div style="width: 775px;height: 375px;">
+        <div id="chart" style="width: 387px;height: 375px;float: left;">
+          <svg></svg>
+        </div>
+        <div id="pieChart" style="width: 387px;height: 375px;float: left;">
+          <svg></svg>
+        </div>
+    </div>
+    <div style="width: 775px">
+        <div style="width: 775px;margin: 0 auto;text-align: center;">
+            <div style="display: inline-block;margin: 20px;">
+                <span class="sectionHeader">Total Votes</span>
+                <div id="totalVotes" class="dataNumber">0</div>
+            </div>
+            <div style="display: inline-block;margin: 20px;">
+                <span class="sectionHeader">Average Age</span>
+                <div id="averageAge" class="dataNumber">0</div>
+            </div>
+        </div>
+    </div>
+    <script>
+        var height = 375;
+        var pieChart, chart;
+        var answers = [];
+
+        function addAnswer(answer) {
+            answers.push(answer);
+            updateData();
+        }
+
+        function updateData() {
+            var barData = getBarChartData();
+
+            d3.select('#chart svg')
+                .datum(barData)
+                .transition()
+                .duration(500)
+                .call(chart);
+
+            var genderData = getGenderData();
+
+            d3.select("#pieChart svg")
+                .datum(genderData)
+                .transition()
+                .duration(500)
+                .call(pieChart);
+
+            setStyling();
+
+            $('#averageAge').text(getMedianAge());
+            $('#totalVotes').text(answers.length);
+        }
+
+        function setStyling() {
+            d3.selectAll('.tick text')
+                .attr('transform', 'translate(0,10)')
+                .style('fill', '#747571')
+                .style('font-family', 'Montserrat')
+                .style('font-size', '14');
+
+            d3.selectAll('.tick line')
+                .style('stroke', '#ffffff')
+                .style('fill', '#ffffff');
+
+            d3.selectAll('.nv-bar text')
+                .style('fill', '#747571')
+                .style('font-family', 'Montserrat')
+                .style('font-size', '11');
+
+            d3.selectAll('.nv-label text')
+                .style('fill', '#ffffff')
+                .style('font-family', 'Montserrat')
+                .style('font-size', '14');
+        }
+
+        function getMedianAge() {
+            var output = "";
+            var ageTotal = 0;
+            for(var i = 0; i < answers.length; i++) {
+                ageTotal += answers[i].age;
+            }
+            output = Math.round(ageTotal / answers.length);
+            return (isNaN(output)) ? 0 : output;
+        }
+
+        function getBarChartData() {
+            var data = getInitialAgeStructure();
+            for(var i = 0; i < answers.length; i++) {
+                var answer = answers[i];
+                if(answer.age < 20) {
+                    data[0].values[0].number++;
+                } else if(answer.age < 30) {
+                    data[0].values[1].number++;
+                } else if(answer.age < 40) {
+                    data[0].values[2].number++;
+                } else if(answer.age < 50) {
+                    data[0].values[3].number++;
+                } else {
+                    data[0].values[4].number++;
+                }
+            }
+
+            return data;
+        }
+
+        function getGenderData() {
+            var data = getInitialGenderStructure();
+            for(var i = 0; i < answers.length; i++) {
+                var answer = answers[i];
+                if(answer.isMale) {
+                    data[0].value++;
+                } else {
+                    data[1].value++;
+                }
+            }
+
+            return data;
+        }
+
+        var getInitialAgeStructure = function() {
+            return [
+                {
+                    key: "Ages",
+                    values: [
+                        {
+                            number: 0,
+                            value: "Under 20"
+                        },
+                        {
+                            number: 0,
+                            value: "20-29"
+                        },
+                        {
+                            number: 0,
+                            value: "30-39"
+                        },
+                        {
+                            number: 0,
+                            value: "40-49"
+                        },
+                        {
+                            number: 0,
+                            value: "50+"
+                        }
+                    ]
+                }
+            ]
+        };
+
+        var getInitialGenderStructure = function() {
+            return [
+                {
+                    label: "Male",
+                    value: 0
+                },
+                {
+                    label: "Female",
+                    value: 0
+                }
+            ];
+        }
+
+        nv.addGraph(function() {
+          chart = nv.models.discreteBarChart()
+                .x(function(d) { return d.value })
+                .y(function(d) { return d.number })
+                .staggerLabels(false)
+                .tooltips(false)
+                .showValues(true)
+                .showYAxis(false)
+                .showXAxis(true)
+                .width(387)
+                .height(375)
+                .color(['#2bb1dc']);
+
+            chart.valueFormat(d3.format('f'));
+            chart.yAxis.ticks(0);
+
+            nv.utils.windowResize(chart.update);
+
+          return chart;
+        });
+
+        
+
+        nv.addGraph(function() {
+
+            pieChart = nv.models.pieChart()
+                .x(function(d) { return d.label })
+                .y(function(d) { return d.value })
+                .showLabels(true)
+                .showLegend(false)
+                .donut(false)
+                .width(387)
+                .height(375)
+                .color(['#737571','#2bb1dc']);
+
+            pieChart.pie.pieLabelsOutside(false);
+
+            return pieChart;
+        });
+
+        //----- INIT ------------------------------------------------------------------------
+
+        /*
+            This provides the kickoff which fades in the view (for the sake of the presentation)
+            and calls the server to set the current question.
+        */
+        $(function() {
+            $('body').delay(1000).fadeIn("slow", function() {
+                setQuestion();
+            });
+        });
+
+        /*
+            This method will set the current question and also return all of the data which is
+            stored on the server.
+        */
+        function setQuestion() {
+            $.get( "/setQuestion?q=demographics", function( data ) {
+                var previousAnswers = data.data;
+                answers = answers.concat(previousAnswers);
+                updateData();
+            });
+        }
+
+        //----- WEBSOCKET HANDLING ----------------------------------------------------------
+
+        /*
+            Anytime the server sends out a new location, we will handle it here and parse it
+            and then add a new route.
+        */
+        var socket = io.connect('/');
+            socket.on('demographics', function (data) {
+            addAnswer(data);
+        });
+
+    </script>
+</body>
+</html>

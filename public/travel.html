@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<html>
+<head>
+	<link href="/travel.css" rel="stylesheet" type="text/css">
+	<link href="http://fonts.googleapis.com/css?family=Montserrat:400,700" rel="stylesheet" type="text/css">
+	<script src="//d3js.org/d3.v3.min.js"></script>
+	<script src="//d3js.org/topojson.v1.min.js"></script>
+	<script src="/socket.io/socket.io.js"></script>
+	<script src="//cdnjs.cloudflare.com/ajax/libs/jquery/2.0.3/jquery.js"></script>
+</head>
+<body>
+<div id="container">
+	<div id="svgDisplay"></div>
+	<div style="width: 100%;">
+		<div style="width: 775px;margin: 0 auto;text-align: center;">
+			<div style="display: inline-block;margin: 20px;">
+				<span class="sectionHeader">Total Votes</span>
+				<div id="totalVotes" class="dataNumber">0</div>
+			</div>
+			<div style="display: inline-block;margin: 20px;min-width: 500px;">
+				<span class="sectionHeader">Total Distance Traveled From Chattanooga</span>
+				<div class="dataNumber"><span id="milesTraveled">0</span> mi</div>
+			</div>
+		</div>
+	</div>
+</div>
+<script>
+
+	// The following variables provide scope for this view
+	var locationsQueue = [];
+	var mappedLocations = [];
+	var isAnimatingRoute = false;
+	var milesTraveled = 0;
+
+	// The following variables just provide some basic coordinate information used in this view
+	var CHA_COORDINATES = [ -85.2039, 35.0353 ];
+	var CONTINENTAL_EXTENT = { bl:[-124.848974, 24.396308], tr: [-66.885444, 49.384358] };
+	var ALASKA_EXTENT = { bl:[-170.082092, 52.802761], tr: [-130.003967, 71.441171] };
+	var HAWAII_EXTENT = { bl:[-178.25592, 15.199386], tr: [-155.228577, 35.46067] };
+
+	// Setting Up the D3/SVG Map View
+	var width = 750;
+	var height = 375;
+
+	// Setup the projection information for the map
+	var projection = d3.geo.albersUsa()
+	    .scale(800)
+	    .translate([width / 2, height / 2])
+	    .precision(0);
+
+	// Setup the path information for the map
+	var path = d3.geo.path()
+	    .projection(projection);
+
+	// Setup an SVG Element
+	var svg = d3.select("#svgDisplay")
+		.append("svg")
+	    .attr("width", width)
+	    .attr("height", height);
+
+	// Setup a graphics element as a child of the SVG element
+	var g = svg.append("g");
+
+	// Setup the map with the JSON information for the US Map
+	d3.json("us.json", function(error, us) {
+
+		// Setup the States
+		g.append("g")
+			.attr("id", "states")
+			.selectAll("path")
+			.data(topojson.feature(us, us.objects.states).features)
+			.enter().append("path")
+			.attr("d", path);
+
+		// Setup the lines that are the state borders
+		g.append("path")
+			.datum(topojson.mesh(us, us.objects.states, function(a, b) { return a !== b; }))
+			.attr("id", "state-borders")
+			.attr("d", path);
+
+	});
+
+	//----- INTERACTING WITH THE MAP -------------------------------------------------
+
+	function addNewRoute(endCoordinates) {
+		if(!canMapPoint(endCoordinates)) {
+			return;
+		}
+		locationsQueue.push(endCoordinates);
+		mapNextCoordinate();
+	}
+
+	function mapNextCoordinate() {
+		if(isAnimatingRoute) {
+			return;
+		} 
+
+		if(locationsQueue.length > 0) {
+			isAddingCoordinate = true;
+			var nextLocation = locationsQueue.splice(0,1)[0];
+			mapRoute(nextLocation);
+		}
+	}
+
+	function mapRoute(endCoordinates) {
+		placeCircle(CHA_COORDINATES);
+
+		mappedLocations.push(endCoordinates);
+		milesTraveled += Math.round(distanceBetweenCoordinatesInMiles(CHA_COORDINATES, endCoordinates)) * 2;
+		animateMilesValue(milesTraveled);
+		$('#totalVotes').text(mappedLocations.length);
+
+		if(canDrawLineForPoint(endCoordinates)) {
+			svg.append("path")
+			    .datum({type: "LineString", coordinates: [CHA_COORDINATES, endCoordinates]})
+			    .attr("class", "arc")
+			    .attr("d", path)
+			    .call(lineTransition);
+		} else {
+			placeCircle(endCoordinates);
+	        isAnimatingRoute = false;
+	        mapNextCoordinate();
+		}
+	}
+
+	function placeCircle(input) {
+		var coords = projection(input);
+
+		var permCircle = g.append('circle')
+			.attr('cx', coords[0])
+			.attr('cy', coords[1])
+			.attr('r', 4)
+			.style('fill', '#2bb1db')
+			.style('opacity', 0.0);
+			
+		var tempCircle = g.append('circle')
+			.attr('cx', coords[0])
+			.attr('cy', coords[1])
+			.attr('r', 0.1)
+			.style('fill', '#ec611e')
+			.style('opacity', '0.5')
+			.style('stroke', '#ec611e');
+			
+		permCircle.transition()
+			.duration(1000)
+			.attr('r', 4)
+			.style('opacity', '1.0');
+			
+		tempCircle.transition()
+			.delay(0)
+			.duration(1000)
+			.style('opacity', '0.0')
+			.attr('r', 40)
+			.remove();
+	}
+
+	//----- TEXT ANIMATIONS ----------------------------------------------------------
+
+	function animateMilesValue(points) {
+		$({countNumber: $('#milesTraveled').text()}).animate({countNumber: points}, {
+				duration: 2000,
+				easing:'linear',
+				step: function() {
+					$('#milesTraveled').text(parseInt(this.countNumber));
+				},
+				complete: function() {
+				        $('#milesTraveled').text(points)
+				}
+		});		
+	}
+
+	//----- TRANSITIONS FOR LINE ANIMATION -------------------------------------------
+
+	var lineTransition = function lineTransition(path) {
+	    path.transition()
+	        .duration(2000)
+	        .attrTween("stroke-dasharray", tweenDash)
+	        .each("end", function(d,i) { 
+	            var endCoordinates = d.coordinates[1];
+	            placeCircle(endCoordinates);
+	            setTimeout(function() {
+	            	isAnimatingRoute = false;
+	            	mapNextCoordinate();
+	            } , 2000);
+	        });
+	};
+
+	var tweenDash = function tweenDash() {
+	    var len = this.getTotalLength(),
+	        interpolate = d3.interpolateString("0," + len, len + "," + len);
+	    return function(t) { return interpolate(t); };
+	};
+
+	//----- LOGIC FOR CALCULATING DISTANCE BETWEEN COORDINATES -------------------------
+
+	/** 
+		This function uses the haversine formula for calculating distance between
+		two coordinates.
+
+		http://www.movable-type.co.uk/scripts/latlong.html
+	*/
+	function distanceBetweenCoordinatesInMiles(c1, c2) {
+		var lat1 = c1[1];
+		var lon1 = c1[0];
+		var lat2 = c2[1];
+		var lon2 = c2[0];
+
+		var R = 3963.1676; // miles
+		var dLat = toRadians(lat2-lat1);
+		var dLon = toRadians(lon2-lon1);
+		var lat1 = toRadians(lat1);
+		var lat2 = toRadians(lat2);
+
+		var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+		        Math.sin(dLon/2) * Math.sin(dLon/2) * Math.cos(lat1) * Math.cos(lat2); 
+		var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+		return R * c;
+	}
+
+	function toRadians(val) {
+	    return val * Math.PI / 180;
+	}
+
+	//----- METHODS TO DETECT IF WE CAN MAP POINTS OR DRAW A LINE FOR IT -----------------
+
+	/*
+		This is a basic calculation to determine if a coordinate is within a rectangle (extent)
+	*/
+	function isPointInExtent(coordinates, ex) {
+		if(coordinates[0] > ex.bl[0] && coordinates[0] < ex.tr[0] 
+			&& coordinates[1] > ex.bl[1] && coordinates[1] < ex.tr[1]) {
+			return true;
+		}
+		return false;
+	}
+
+	/*
+		This determines if we can map the point.  We can map points in Alaska, Hawaii, and the
+		continental United States (but not London for example).
+	*/
+	function canMapPoint(coordinates) {
+		if(isPointInExtent(coordinates, CONTINENTAL_EXTENT)) {
+			return true;
+		} else if (isPointInExtent(coordinates, ALASKA_EXTENT) 
+			|| isPointInExtent(coordinates, HAWAII_EXTENT)) {
+			return true;
+		}
+		return false;
+	}
+
+	/*
+		This determines if we can draw a route to the point.  We can do this for the continental
+		United States only.
+	*/
+	function canDrawLineForPoint(coordinates) {
+		if(isPointInExtent(coordinates, CONTINENTAL_EXTENT)) {
+			return true;
+		}
+	}
+
+	//----- INIT ------------------------------------------------------------------------
+
+	/*
+		This provides the kickoff which fades in the view (for the sake of the presentation)
+		and calls the server to set the current question.
+	*/
+	$(function() {
+		$('body').delay(1000).fadeIn("slow", function() {
+			setQuestion();
+		});
+	});
+
+	/*
+		This method will set the current question and also return all of the data which is
+		stored on the server.
+	*/
+	function setQuestion() {
+		$.get( "/setQuestion?q=travel", function( data ) {
+			 var locations = data.data;
+			 for(var i = 0; i < locations.length; i++) {
+			 	locationsQueue.push([locations[i].lng, locations[i].lat]);
+			 }
+			mapNextCoordinate();
+		});
+	}
+
+	//----- WEBSOCKET HANDLING ----------------------------------------------------------
+
+	/*
+		Anytime the server sends out a new location, we will handle it here and parse it
+		and then add a new route.
+	*/
+	var socket = io.connect('/');
+		socket.on('location', function (data) {
+		addNewRoute([data.lng, data.lat]);
+	});
+
+</script>
+</body>
+</html>

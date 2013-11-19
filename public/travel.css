@@ -1,0 +1,121 @@
+body
+{
+	background-color: #ffffff;
+	margin: auto 0;
+	width: 100%;
+	display: none;
+}
+
+#container
+{
+	width: 775px;
+	height: 561px;
+	background-color: #fff;
+}
+
+.background {
+  fill: none;
+  pointer-events: all;
+}
+
+#states {
+  fill: #AAA;
+}
+
+#states .active {
+  fill: orange;
+}
+
+#state-borders {
+  fill: none;
+  stroke: #CCC;
+  stroke-width: 1.5px;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+.title
+{
+	font-family: 'Montserrat', sans-serif;
+	font-size: 66px;
+	color: #c6cd8a;
+	font-weight: 700;
+	margin-top: 30px;
+	margin: 0 auto;
+	text-transform: uppercase;
+	width: 1000px;
+	text-align: center;
+}
+
+.subtitle
+{
+	font-family: 'Montserrat', sans-serif;
+	font-size: 26px;
+	color: #fff;
+	font-weight: 200;
+	margin-top: 5px;
+	margin: 0 auto;
+	width: 1000px;
+	text-align: center;
+}
+
+#svgDisplay
+{
+	width: 960px;
+	margin: 0 auto;
+}
+
+.sectionHeader
+{
+	background-color: #747571;
+	padding: 3px 5px;
+	color: #fff;
+	text-transform: uppercase;
+	font-family: 'Montserrat', sans-serif;
+	font-size: 14px;
+	margin: 0 auto;
+	display: table;
+}
+
+.dataNumber
+{
+	font-family: 'Montserrat', sans-serif;
+	font-size: 100px;
+	color: #2cb2dc;
+	font-weight: 700;
+	margin: 0 auto;
+	width: 100%;
+	text-align: center;
+}
+
+.arc
+{
+	stroke: #2bb1db;
+ 	stroke-width: 2px;
+  	stroke-linecap: round;
+  	border: 0px;
+}
+
+// Clearfix
+
+.clearfix:after {
+    content: ".";
+    display: block;
+    clear: both;
+    visibility: hidden;
+    line-height: 0;
+    height: 0;
+}
+ 
+.clearfix {
+    display: inline-block;
+}
+ 
+html[xmlns] .clearfix {
+    display: block;
+}
+ 
+* html .clearfix {
+    height: 1%;
+}
